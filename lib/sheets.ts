@@ -2,12 +2,16 @@ import { google } from 'googleapis';
 
 function getAuth() {
   let privateKey = process.env.GOOGLE_PRIVATE_KEY ?? '';
-  // Handle both escaped \n and actual newlines
+
+  // If base64 encoded, decode it
+  if (!privateKey.includes('BEGIN')) {
+    privateKey = Buffer.from(privateKey, 'base64').toString('utf8');
+  }
+
+  // Handle escaped newlines
   if (privateKey.includes('\\n')) {
     privateKey = privateKey.replace(/\\n/g, '\n');
   }
-  // Remove surrounding quotes if present
-  privateKey = privateKey.replace(/^["']|["']$/g, '');
 
   return new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
