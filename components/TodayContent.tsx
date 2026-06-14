@@ -2,10 +2,10 @@ import ScoreRing from './ScoreRing';
 import TrendChart from './TrendChart';
 import SubCard from './SubCard';
 
-async function getDashboardData() {
+async function getDashboardData(user = 'S1') {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
   try {
-    const res = await fetch(`${baseUrl}/api/dashboard`, {
+    const res = await fetch(`${baseUrl}/api/dashboard?user=${user}`, {
       next: { revalidate: 300 },
     });
     if (!res.ok) throw new Error(`API ${res.status}`);
@@ -26,8 +26,8 @@ function greeting() {
   return 'Good evening';
 }
 
-export default async function TodayContent() {
-  const data = await getDashboardData();
+export default async function TodayContent({ user = 'S1' }: { user?: string }) {
+  const data = await getDashboardData(user);
 
   const score = data?.score ?? null;
   const trend = data?.trend ?? [];

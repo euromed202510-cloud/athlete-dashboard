@@ -4,12 +4,15 @@ import { calcRecoveryScore } from '@/lib/recovery';
 
 export const revalidate = 300; // 5 min cache
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const user = searchParams.get('user') ?? 'S1';
+
     const [morning, night, daily] = await Promise.all([
-      getMorningData(),
-      getNightData(),
-      getDailyData(),
+      getMorningData(user),
+      getNightData(user),
+      getDailyData(user),
     ]);
 
     // Sort by date

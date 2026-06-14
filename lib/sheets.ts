@@ -67,8 +67,8 @@ function parseNum(val: string | undefined): number | null {
   return isNaN(n) ? null : n;
 }
 
-export async function getMorningData(): Promise<MorningRow[]> {
-  const rows = await getSheetValues('Master_Morning_S1!A:Z');
+export async function getMorningData(suffix = 'S1'): Promise<MorningRow[]> {
+  const rows = await getSheetValues(`Master_Morning_${suffix}!A:Z`);
   if (rows.length < 2) return [];
   const [header, ...data] = rows;
   const idx = (name: string) => header.findIndex(h => h?.toLowerCase().includes(name.toLowerCase()));
@@ -92,8 +92,8 @@ export async function getMorningData(): Promise<MorningRow[]> {
     }));
 }
 
-export async function getNightData(): Promise<NightRow[]> {
-  const rows = await getSheetValues('Master_Night_S1!A:Z');
+export async function getNightData(suffix = 'S1'): Promise<NightRow[]> {
+  const rows = await getSheetValues(`Master_Night_${suffix}!A:Z`);
   if (rows.length < 2) return [];
   const [header, ...data] = rows;
   const idx = (name: string) => header.findIndex(h => h?.toLowerCase().includes(name.toLowerCase()));
@@ -117,9 +117,9 @@ export async function getNightData(): Promise<NightRow[]> {
     }));
 }
 
-export async function getDailyData(): Promise<DailyRow[]> {
+export async function getDailyData(suffix = 'S1'): Promise<DailyRow[]> {
   try {
-    const rows = await getSheetValues('Master_Daily!A:Z');
+    const rows = await getSheetValues(`Master_Daily_${suffix}!A:Z`);
     if (rows.length < 2) return [];
     const [header, ...data] = rows;
     const idx = (name: string) => header.findIndex(h => h?.toLowerCase().includes(name.toLowerCase()));

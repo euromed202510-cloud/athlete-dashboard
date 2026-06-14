@@ -1,10 +1,11 @@
 import { Suspense } from 'react';
 import TodayContent from '@/components/TodayContent';
 
-export default function HomePage() {
+export default function HomePage({ searchParams }: { searchParams: { user?: string } }) {
+  const user = searchParams.user ?? 'S1';
   return (
     <Suspense fallback={<LoadingState />}>
-      <TodayContent />
+      <TodayContent user={user} />
     </Suspense>
   );
 }
