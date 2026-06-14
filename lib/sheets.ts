@@ -1,7 +1,14 @@
 import { google } from 'googleapis';
 
 function getAuth() {
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  let privateKey = process.env.GOOGLE_PRIVATE_KEY ?? '';
+  // Handle both escaped \n and actual newlines
+  if (privateKey.includes('\\n')) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
+  // Remove surrounding quotes if present
+  privateKey = privateKey.replace(/^["']|["']$/g, '');
+
   return new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     key: privateKey,
