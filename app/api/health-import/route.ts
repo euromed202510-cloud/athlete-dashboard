@@ -30,9 +30,6 @@ export async function POST(request: Request) {
 
     const body = await request.json();
 
-    // Debug: return raw body
-    return NextResponse.json({ debug: true, receivedBody: body });
-
     // Extract numeric value from health sample object or plain number
     const extractVal = (v: unknown): number | null => {
       if (v == null) return null;
