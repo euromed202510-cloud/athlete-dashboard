@@ -30,9 +30,6 @@ export async function POST(request: Request) {
 
     const body = await request.json();
 
-    // Debug: return raw body
-    return NextResponse.json({ debug: true, receivedBody: body });
-
     // Extract numeric value from health sample object or plain number
     const extractVal = (v: unknown): number | null => {
       if (v == null) return null;
@@ -40,16 +37,31 @@ export async function POST(request: Request) {
       if (typeof v === 'string') { const n = parseFloat(v); return isNaN(n) ? null : n; }
       if (typeof v === 'object') {
         const obj = v as Record<string, unknown>;
-        for (const key of ['value', 'Value', 'quantity', 'count']) {
-          if (obj[key] != null) return extractVal(obj[key]);
+        for (const key of ['value', 'Value', 'quantity', 'count', ...Object.keys(obj)]) {
+          if (obj[key] != null && typeof obj[key] !== 'object') return extractVal(obj[key]);
         }
       }
       return null;
     };
 
+    // id: handle {"": "1"} pattern from iOS Shortcuts
     const rawId = body.id;
-    const id = (typeof rawId === 'object' && rawId !== null) ? 'S1' : (String(rawId ?? 'S1'));
-    const date = typeof body.date === 'string' ? body.date : null;
+    let id = 'S1';
+    if (typeof rawId === 'string' && rawId) {
+      id = rawId;
+    } else if (typeof rawId === 'object' && rawId !== null) {
+      const vals = Object.values(rawId as Record<string, unknown>);
+      if (vals.length > 0 && typeof vals[0] === 'string') id = vals[0] as string;
+    }
+
+    // date: if empty object or missing, default to yesterday (shortcut runs each morning for prev day)
+    let date: string | null = null;
+    if (typeof body.date === 'string' && body.date) {
+      date = body.date;
+    } else {
+      const yesterday = new Date(Date.now() - 86400000);
+      date = yesterday.toISOString().slice(0, 10);
+    }
     const hrv = extractVal(body.hrv);
     const rhr = extractVal(body.rhr);
     const spo2 = extractVal(body.spo2);
