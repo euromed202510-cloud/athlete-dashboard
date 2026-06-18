@@ -40,7 +40,7 @@ export default function CoachContent({ user = 'S1' }: { user?: string }) {
           COACH
         </h1>
         <p className="text-xs mt-1" style={{ color: 'var(--subtext)', opacity: 0.7 }}>
-          AI coaching powered by Claude
+          AI coaching powered by Gemini
         </p>
       </div>
 

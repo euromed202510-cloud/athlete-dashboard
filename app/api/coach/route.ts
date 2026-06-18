@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getAutoHealthData, getMorningData, getDailyData } from '@/lib/sheets';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY ?? '');
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,9 +21,11 @@ export async function POST(req: NextRequest) {
     const findToday = <T extends { date: string }>(arr: T[]) =>
       arr.find(r => r.date === todayStr || r.date.replace(/\//g, '-') === todayStr);
 
-    const todayAH = findToday(autoHealth as { date: string }[]) ?? (autoHealth as { date: string }[])[autoHealth.length - 1];
-    const todayMorning = findToday(morning as { date: string }[]) ?? (morning as { date: string }[])[morning.length - 1];
-    const todayDaily = findToday(daily as { date: string }[]) ?? (daily as { date: string }[])[daily.length - 1];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ah = autoHealth as any[], mo = morning as any[], da = daily as any[];
+    const todayAH = findToday(ah) ?? ah[ah.length - 1];
+    const todayMorning = findToday(mo) ?? mo[mo.length - 1];
+    const todayDaily = findToday(da) ?? da[da.length - 1];
 
     const metrics = {
       date: todayStr,
@@ -56,23 +58,15 @@ export async function POST(req: NextRequest) {
 
 データが不足している項目は「—」として、利用可能なデータのみで分析してください。簡潔かつ具体的に、約300字以内でまとめてください。`;
 
-    const stream = await client.messages.stream({
-      model: 'claude-opus-4-8',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }],
-      thinking: { type: 'adaptive' },
-    });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const result = await model.generateContentStream(prompt);
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
-        for await (const chunk of stream) {
-          if (
-            chunk.type === 'content_block_delta' &&
-            chunk.delta.type === 'text_delta'
-          ) {
-            controller.enqueue(encoder.encode(chunk.delta.text));
-          }
+        for await (const chunk of result.stream) {
+          const text = chunk.text();
+          if (text) controller.enqueue(encoder.encode(text));
         }
         controller.close();
       },
