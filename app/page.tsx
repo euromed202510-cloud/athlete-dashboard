@@ -1,6 +1,8 @@
 import { Suspense } from 'react';
 import TodayContent from '@/components/TodayContent';
 
+export const dynamic = 'force-dynamic';
+
 export default function HomePage({ searchParams }: { searchParams: { user?: string } }) {
   const user = searchParams.user ?? 'S1';
   return (
