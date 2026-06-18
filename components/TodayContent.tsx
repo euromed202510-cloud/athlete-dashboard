@@ -147,7 +147,7 @@ export default async function TodayContent({ user = 'S1' }: { user?: string }) {
       >
         {[
           { label: 'RHR', value: daily?.rhr ? `${daily.rhr}` : '—', unit: 'bpm' },
-          { label: 'HRV', value: daily?.hrv ? `${daily.hrv}` : '—', unit: 'ms' },
+          { label: 'HRV', value: daily?.hrv ? `${Math.round(daily.hrv)}` : '—', unit: 'ms' },
           { label: 'RESP', value: daily?.breathRate ? `${daily.breathRate}` : '—', unit: '/min' },
         ].map(item => (
           <div key={item.label} className="flex flex-col items-center gap-0.5">
