@@ -19,11 +19,13 @@ function sortByDate<T extends { date: string }>(arr: T[]): T[] {
 async function getDashboardData(user = 'S1') {
   try {
     const autoHealthId = user.replace(/^S/, '');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const safe = (p: Promise<any[]>) => p.catch(() => []);
     const [morning, night, daily, autoHealth] = await Promise.all([
-      getMorningData(user),
-      getNightData(user),
-      getDailyData(user),
-      getAutoHealthData(autoHealthId),
+      safe(getMorningData(user)),
+      safe(getNightData(user)),
+      safe(getDailyData(user)),
+      safe(getAutoHealthData(autoHealthId)),
     ]);
 
     const sortedMorning = sortByDate(morning);
