@@ -1,6 +1,7 @@
 import ScoreRing from './ScoreRing';
 import TrendChart from './TrendChart';
 import SubCard from './SubCard';
+import WorkoutUploadButton from './WorkoutUploadButton';
 
 async function getDashboardData(user = 'S1') {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
@@ -159,6 +160,9 @@ export default async function TodayContent({ user = 'S1' }: { user?: string }) {
           detail="Wake time tracking"
         />
       </div>
+
+      {/* Workout Upload */}
+      <WorkoutUploadButton userId={user.replace(/^S/, '')} />
 
       {/* Action Matrix */}
       <div
