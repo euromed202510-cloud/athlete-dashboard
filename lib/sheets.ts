@@ -117,6 +117,46 @@ export async function getNightData(suffix = 'S1'): Promise<NightRow[]> {
     }));
 }
 
+export interface AutoHealthRow {
+  date: string;
+  id: string;
+  hrv: number | null;
+  rhr: number | null;
+  spo2: number | null;
+  respRate: number | null;
+  wristTemp: number | null;
+  sleepTotal: number | null;
+  deepSleep: number | null;
+  remSleep: number | null;
+}
+
+export async function getAutoHealthData(id = '1'): Promise<AutoHealthRow[]> {
+  try {
+    const rows = await getSheetValues('AutoHealth!A:J');
+    if (rows.length < 2) return [];
+    const [header, ...data] = rows;
+    const idx = (name: string) => header.findIndex(h => h?.toLowerCase().includes(name.toLowerCase()));
+    const dateIdx = idx('date') === -1 ? 0 : idx('date');
+    const idIdx = idx('id') === -1 ? 1 : idx('id');
+    return data
+      .filter(r => r[dateIdx] && (id === 'all' || String(r[idIdx]) === String(id)))
+      .map(r => ({
+        date: r[dateIdx],
+        id: r[idIdx] ?? '',
+        hrv: parseNum(r[idx('hrv')]),
+        rhr: parseNum(r[idx('rhr')]),
+        spo2: parseNum(r[idx('spo2')]),
+        respRate: parseNum(r[idx('resp')]),
+        wristTemp: parseNum(r[idx('wrist') === -1 ? idx('temp') : idx('wrist')]),
+        sleepTotal: parseNum(r[idx('sleep')]),
+        deepSleep: parseNum(r[idx('deep')]),
+        remSleep: parseNum(r[idx('rem')]),
+      }));
+  } catch {
+    return [];
+  }
+}
+
 export async function getDailyData(suffix = 'S1'): Promise<DailyRow[]> {
   try {
     const rows = await getSheetValues(`Master_Daily_${suffix}!A:Z`);
