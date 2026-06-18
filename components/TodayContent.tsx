@@ -114,11 +114,11 @@ export default async function TodayContent({ user = 'S1' }: { user?: string }) {
 
   const score = data?.score ?? null;
   const trend = data?.trend ?? [];
-  const baselines = data?.baselines ?? {};
-  const today = data?.today ?? {};
+  const baselines = data?.baselines ?? { '7d': null, '30d': null, delta24h: null };
+  const today = data?.today ?? { morning: null, night: null, daily: null };
 
-  const daily = today?.daily ?? null;
-  const morning = today?.morning ?? null;
+  const daily = today.daily ?? null;
+  const morning = today.morning ?? null;
 
   const actionIcon = score?.actionIcon ?? '—';
   const action = score?.action ?? 'データを取得中...';
