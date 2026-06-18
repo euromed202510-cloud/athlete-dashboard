@@ -60,7 +60,7 @@ async function getDashboardData(user = 'S1') {
     });
 
     const sortedDaily = sortByDate(mergedDaily);
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
     const findToday = <T extends { date: string }>(arr: T[]) =>
       arr.find(r => r.date === todayStr || r.date.replace(/\//g, '-') === todayStr);
 
