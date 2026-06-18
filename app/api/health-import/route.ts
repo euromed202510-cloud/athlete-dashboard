@@ -29,7 +29,32 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { date, id = 'S1', hrv, rhr, spo2, respRate, wristTemp, sleepTotal, deepSleep, remSleep } = body;
+
+    // Extract numeric value from health sample object or plain number
+    const extractVal = (v: unknown): number | null => {
+      if (v == null) return null;
+      if (typeof v === 'number') return v;
+      if (typeof v === 'string') { const n = parseFloat(v); return isNaN(n) ? null : n; }
+      if (typeof v === 'object') {
+        const obj = v as Record<string, unknown>;
+        for (const key of ['value', 'Value', 'quantity', 'count']) {
+          if (obj[key] != null) return extractVal(obj[key]);
+        }
+      }
+      return null;
+    };
+
+    const rawId = body.id;
+    const id = (typeof rawId === 'object' && rawId !== null) ? 'S1' : (String(rawId ?? 'S1'));
+    const date = typeof body.date === 'string' ? body.date : null;
+    const hrv = extractVal(body.hrv);
+    const rhr = extractVal(body.rhr);
+    const spo2 = extractVal(body.spo2);
+    const respRate = extractVal(body.respRate);
+    const wristTemp = extractVal(body.wristTemp);
+    const sleepTotal = extractVal(body.sleepTotal);
+    const deepSleep = extractVal(body.deepSleep);
+    const remSleep = extractVal(body.remSleep);
 
     if (!date) {
       return NextResponse.json({ error: 'date is required' }, { status: 400 });
