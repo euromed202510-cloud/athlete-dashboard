@@ -2,29 +2,111 @@ import ScoreRing from './ScoreRing';
 import TrendChart from './TrendChart';
 import SubCard from './SubCard';
 import WorkoutUploadButton from './WorkoutUploadButton';
-
-async function getDashboardData(user = 'S1') {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
-  try {
-    const res = await fetch(`${baseUrl}/api/dashboard?user=${user}`, {
-      next: { revalidate: 300 },
-    });
-    if (!res.ok) throw new Error(`API ${res.status}`);
-    return res.json();
-  } catch {
-    return null;
-  }
-}
-
-function getHour() {
-  return new Date().getHours();
-}
+import { getMorningData, getNightData, getDailyData, getAutoHealthData } from '@/lib/sheets';
+import { calcRecoveryScore } from '@/lib/recovery';
 
 function greeting() {
-  const h = getHour();
+  const h = new Date().getHours();
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
+}
+
+function sortByDate<T extends { date: string }>(arr: T[]): T[] {
+  return [...arr].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function getDashboardData(user = 'S1') {
+  try {
+    const autoHealthId = user.replace(/^S/, '');
+    const [morning, night, daily, autoHealth] = await Promise.all([
+      getMorningData(user),
+      getNightData(user),
+      getDailyData(user),
+      getAutoHealthData(autoHealthId),
+    ]);
+
+    const sortedMorning = sortByDate(morning);
+    const sortedNight = sortByDate(night);
+    const sortedAutoHealth = sortByDate(autoHealth);
+
+    const mergedDaily = sortByDate(daily).map(d => {
+      const ah = sortedAutoHealth.find(r => r.date === d.date);
+      if (!ah) return d;
+      return {
+        ...d,
+        hrv: ah.hrv ?? d.hrv,
+        rhr: ah.rhr ?? d.rhr,
+        breathRate: ah.respRate ?? d.breathRate,
+        skinTemp: ah.wristTemp ?? d.skinTemp,
+        sleepDuration: ah.sleepTotal ?? d.sleepDuration,
+        deepSleep: ah.deepSleep ?? d.deepSleep,
+        rem: ah.remSleep ?? d.rem,
+        spo2: ah.spo2 ?? d.spo2,
+      };
+    });
+
+    sortedAutoHealth.forEach(ah => {
+      if (!mergedDaily.find(d => d.date === ah.date)) {
+        mergedDaily.push({
+          date: ah.date,
+          hrv: ah.hrv, rhr: ah.rhr, breathRate: ah.respRate,
+          skinTemp: ah.wristTemp, sleepDuration: ah.sleepTotal,
+          deepSleep: ah.deepSleep, rem: ah.remSleep, spo2: ah.spo2, vo2max: null,
+        });
+      }
+    });
+
+    const sortedDaily = sortByDate(mergedDaily);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const findToday = <T extends { date: string }>(arr: T[]) =>
+      arr.find(r => r.date === todayStr || r.date.replace(/\//g, '-') === todayStr);
+
+    const todayMorning = findToday(sortedMorning) ?? sortedMorning[sortedMorning.length - 1];
+    const todayNight = findToday(sortedNight) ?? sortedNight[sortedNight.length - 1];
+    const todayDaily = findToday(sortedDaily) ?? sortedDaily[sortedDaily.length - 1];
+
+    const score = calcRecoveryScore(
+      { morning: todayMorning, night: todayNight, daily: todayDaily },
+      { morning: sortedMorning, night: sortedNight, daily: sortedDaily }
+    );
+
+    const last7 = sortedDaily.slice(-7).map(d => {
+      const m = sortedMorning.find(r => r.date === d.date);
+      const n = sortedNight.find(r => r.date === d.date);
+      const s = calcRecoveryScore(
+        { morning: m, night: n, daily: d },
+        { morning: sortedMorning, night: sortedNight, daily: sortedDaily }
+      );
+      return { date: d.date, score: s.total };
+    });
+
+    const hrvValues = sortedDaily.map(r => r.hrv).filter((v): v is number => v !== null);
+    const last7Avg = last7.length ? Math.round(last7.reduce((a, b) => a + b.score, 0) / last7.length) : null;
+    const last30Daily = sortedDaily.slice(-30);
+    const last30Avg = last30Daily.length
+      ? Math.round(
+          last30Daily.map(d => {
+            const m = sortedMorning.find(r => r.date === d.date);
+            const n = sortedNight.find(r => r.date === d.date);
+            return calcRecoveryScore({ morning: m, night: n, daily: d }, { morning: sortedMorning, night: sortedNight, daily: sortedDaily }).total;
+          }).reduce((a, b) => a + b, 0) / last30Daily.length
+        )
+      : null;
+
+    const prevScore = last7.length >= 2 ? last7[last7.length - 2]?.score : null;
+    const delta24h = prevScore != null ? score.total - prevScore : null;
+
+    return {
+      score,
+      today: { morning: todayMorning ?? null, night: todayNight ?? null, daily: todayDaily ?? null },
+      trend: last7,
+      baselines: { '7d': last7Avg, '30d': last30Avg, delta24h },
+      hrv30dAvg: hrvValues.length ? Math.round(hrvValues.slice(-30).reduce((a, b) => a + b, 0) / Math.min(hrvValues.length, 30)) : null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export default async function TodayContent({ user = 'S1' }: { user?: string }) {
@@ -56,20 +138,19 @@ export default async function TodayContent({ user = 'S1' }: { user?: string }) {
         </p>
       </div>
 
-      {/* Body Bar */}
+      {/* Body Bar — RHR / HRV / RESP */}
       <div
-        className="rounded-xl p-3 grid grid-cols-4 gap-2"
+        className="rounded-xl p-3 grid grid-cols-3 gap-2"
         style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
       >
         {[
           { label: 'RHR', value: daily?.rhr ? `${daily.rhr}` : '—', unit: 'bpm' },
-          { label: 'SpO2', value: daily?.spo2 ? `${daily.spo2}` : '—', unit: '%' },
+          { label: 'HRV', value: daily?.hrv ? `${daily.hrv}` : '—', unit: 'ms' },
           { label: 'RESP', value: daily?.breathRate ? `${daily.breathRate}` : '—', unit: '/min' },
-          { label: 'TEMP', value: daily?.skinTemp != null ? `${daily.skinTemp > 0 ? '+' : ''}${daily.skinTemp}` : '—', unit: '℃' },
         ].map(item => (
           <div key={item.label} className="flex flex-col items-center gap-0.5">
             <span style={{ fontSize: '9px', color: 'var(--subtext)', letterSpacing: '0.06em' }}>{item.label}</span>
-            <span className="font-bold" style={{ fontSize: '1rem', color: 'var(--text)' }}>{item.value}</span>
+            <span className="font-bold" style={{ fontSize: '1.1rem', color: 'var(--text)' }}>{item.value}</span>
             <span style={{ fontSize: '9px', color: 'var(--subtext)' }}>{item.unit}</span>
           </div>
         ))}
@@ -82,7 +163,9 @@ export default async function TodayContent({ user = 'S1' }: { user?: string }) {
       >
         <div className="w-full flex items-center justify-between">
           <span className="text-xs font-bold tracking-widest" style={{ color: 'var(--subtext)' }}>TOTAL SCORE</span>
-          <span className="text-xs" style={{ color: 'var(--subtext)' }}>HRV {daily?.hrv ? `${daily.hrv}ms` : '—'}</span>
+          <span className="text-xs" style={{ color: 'var(--subtext)' }}>
+            {daily?.hrv ? `HRV ${daily.hrv}ms` : 'No data yet'}
+          </span>
         </div>
 
         {score ? (
