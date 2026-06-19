@@ -99,12 +99,17 @@ async function getDashboardData(user = 'S1') {
     const prevScore = last7.length >= 2 ? last7[last7.length - 2]?.score : null;
     const delta24h = prevScore != null ? score.total - prevScore : null;
 
+    // 30日RTベースライン
+    const rtValues = sortedMorning.slice(-30).map(r => r.reactionTime).filter((v): v is number => v !== null);
+    const rt30dAvg = rtValues.length >= 3 ? rtValues.reduce((a, b) => a + b, 0) / rtValues.length : null;
+
     return {
       score,
       today: { morning: todayMorning ?? null, night: todayNight ?? null, daily: todayDaily ?? null },
       trend: last7,
       baselines: { '7d': last7Avg, '30d': last30Avg, delta24h },
       hrv30dAvg: hrvValues.length ? Math.round(hrvValues.slice(-30).reduce((a, b) => a + b, 0) / Math.min(hrvValues.length, 30)) : null,
+      rt30dAvg,
     };
   } catch {
     return null;
@@ -212,9 +217,36 @@ export default async function TodayContent({ user = 'S1' }: { user?: string }) {
         <SubCard
           title="COGNITIVE"
           icon="🧠"
-          score={morning?.reactionTime != null ? Math.round(Math.max(0, Math.min(100, ((400 - morning.reactionTime) / 200) * 100))) : null}
-          label={morning?.reactionTime != null ? (morning.reactionTime < 250 ? 'Sharp' : morning.reactionTime < 320 ? 'Normal' : 'Dull') : 'No data'}
-          detail={morning?.reactionTime != null ? `RT: ${morning.reactionTime}ms` : '—'}
+          score={(() => {
+            const rt = morning?.reactionTime;
+            const fa = morning?.falseAlarms;
+            if (rt == null && fa == null) return null;
+            // RTスコア: 30日ベースラインがあれば相対比較、なければ350-600ms固定スケール
+            const rtScore = rt != null
+              ? data?.rt30dAvg
+                ? Math.round(Math.max(0, Math.min(100, 50 + (data.rt30dAvg - rt) / (data.rt30dAvg * 0.3) * 50)))
+                : Math.round(Math.max(0, Math.min(100, (600 - rt) / 250 * 100)))
+              : null;
+            // FAスコア: HumanBenchmark基準 (0回=100, 2.4回=70, 8回=0)
+            const faScore = fa != null ? Math.round(Math.max(0, 100 - (fa / 8) * 100)) : null;
+            if (rtScore != null && faScore != null) return Math.round(rtScore * 0.4 + faScore * 0.6);
+            return rtScore ?? faScore;
+          })()}
+          label={(() => {
+            const fa = morning?.falseAlarms;
+            const rt = morning?.reactionTime;
+            if (fa == null && rt == null) return 'No data';
+            if (fa != null) return fa === 0 ? 'Sharp' : fa <= 2 ? 'Good' : fa <= 4 ? 'Normal' : 'Dull';
+            return rt != null ? (rt < 400 ? 'Sharp' : rt < 500 ? 'Normal' : 'Dull') : 'No data';
+          })()}
+          detail={(() => {
+            const rt = morning?.reactionTime;
+            const fa = morning?.falseAlarms;
+            const parts = [];
+            if (rt != null) parts.push(`RT: ${rt}ms`);
+            if (fa != null) parts.push(`FA: ${fa}`);
+            return parts.length ? parts.join(' / ') : '—';
+          })()}
         />
         <SubCard
           title="STRESS LOAD"
