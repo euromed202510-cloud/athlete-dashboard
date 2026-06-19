@@ -103,6 +103,13 @@ export async function getMorningData(suffix = 'S1'): Promise<MorningRow[]> {
     if (hrMin) return parseFloat(hrMin[1]) + (hrMin[2] ? parseFloat(hrMin[2]) / 60 : 0);
     return parseNum(val);
   };
+  // 深い睡眠パース: 分単位入力 → 時間変換
+  const parseDeepSleep = (val: string | undefined): number | null => {
+    if (!val) return null;
+    const n = parseNum(val);
+    if (n == null) return null;
+    return n >= 24 ? n / 60 : n; // 24以上は分とみなして時間に変換
+  };
 
   return data
     .filter(r => r[tsIdx] && String(r[userIdx]) === userId)
@@ -116,7 +123,7 @@ export async function getMorningData(suffix = 'S1'): Promise<MorningRow[]> {
         alcohol: alcIdx >= 0 ? parseNum(r[alcIdx]) : null,
         fatigue: fatIdx >= 0 ? parseNum(r[fatIdx]) : null,
         sleepTotal: sleepIdx >= 0 ? parseSleep(r[sleepIdx]) : null,
-        deepSleep: deepIdx >= 0 ? parseSleep(r[deepIdx]) : null,
+        deepSleep: deepIdx >= 0 ? parseDeepSleep(r[deepIdx]) : null,
       };
     });
 }
