@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     hasEmail: !!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     hasKey: !!process.env.GOOGLE_PRIVATE_KEY,
     hasStratosId: !!process.env.STRATOS_SHEETS_ID,
-    stratosId: process.env.STRATOS_SHEETS_ID?.slice(0, 10) + '...',
+    stratosId: process.env.STRATOS_SHEETS_ID,
   };
 
   return NextResponse.json(results);
