@@ -205,9 +205,9 @@ export default async function TodayContent({ user = 'S1' }: { user?: string }) {
         <SubCard
           title="SLEEP"
           icon="💤"
-          score={daily?.sleepDuration != null ? Math.round(Math.min(100, (daily.sleepDuration / 8) * 100)) : null}
-          label={daily?.sleepDuration != null ? `${daily.sleepDuration.toFixed(1)}h` : 'No data'}
-          detail={daily?.deepSleep != null ? `Deep: ${daily.deepSleep.toFixed(1)}h` : '—'}
+          score={(() => { const s = morning?.sleepTotal ?? daily?.sleepDuration; return s != null ? Math.round(Math.min(100, (s / 8) * 100)) : null; })()}
+          label={(() => { const s = morning?.sleepTotal ?? daily?.sleepDuration; return s != null ? `${s.toFixed(1)}h` : 'No data'; })()}
+          detail={(() => { const d = morning?.deepSleep ?? daily?.deepSleep; return d != null ? `Deep: ${d.toFixed(1)}h` : '—'; })()}
         />
         <SubCard
           title="COGNITIVE"
@@ -224,25 +224,11 @@ export default async function TodayContent({ user = 'S1' }: { user?: string }) {
           detail={morning?.fatigue != null ? `Fatigue: ${morning.fatigue}/10` : '—'}
         />
         <SubCard
-          title="ADAPTABILITY"
-          icon="📈"
-          score={data?.hrv30dAvg && daily?.hrv ? Math.round(Math.min(100, (daily.hrv / data.hrv30dAvg) * 50 + 50)) : null}
-          label={data?.hrv30dAvg && daily?.hrv ? (daily.hrv > data.hrv30dAvg ? 'Adapting' : 'Stable') : 'No data'}
-          detail={data?.hrv30dAvg ? `30d avg: ${data.hrv30dAvg}ms` : '—'}
-        />
-        <SubCard
           title="BIO AGE"
           icon="🔬"
           score={null}
           label="N/A"
           detail="Future feature"
-        />
-        <SubCard
-          title="CIRCADIAN"
-          icon="🕐"
-          score={null}
-          label="No data"
-          detail="Wake time tracking"
         />
       </div>
 

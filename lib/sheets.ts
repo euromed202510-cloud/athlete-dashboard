@@ -36,7 +36,9 @@ export interface MorningRow {
   falseAlarms: number | null;    // False Alarms count
   gripStrength: number | null;   // kg
   alcohol: number | null;        // drinks
-  fatigue: number | null;        // subjective 1-10
+  fatigue: number | null;        // subjective 1-5
+  sleepTotal: number | null;     // hours
+  deepSleep: number | null;      // hours
 }
 
 export interface NightRow {
@@ -68,28 +70,55 @@ function parseNum(val: string | undefined): number | null {
 }
 
 export async function getMorningData(suffix = 'S1'): Promise<MorningRow[]> {
-  const rows = await getSheetValues(`Master_Morning_${suffix}!A:Z`);
+  // 「朝」シート（Googleフォーム回答）から読み込む
+  const userId = suffix.replace(/^S/, '');
+  const rows = await getSheetValues(`朝!A:Z`);
   if (rows.length < 2) return [];
   const [header, ...data] = rows;
   const idx = (name: string) => header.findIndex(h => h?.toLowerCase().includes(name.toLowerCase()));
+  const idxJp = (name: string) => header.findIndex(h => h?.includes(name));
 
-  const dateIdx = idx('date') === -1 ? 0 : idx('date');
-  const rtIdx = idx('reaction');
-  const faIdx = idx('false');
-  const gripIdx = idx('grip');
-  const alcIdx = idx('alcohol') === -1 ? idx('alc') : idx('alcohol');
-  const fatIdx = idx('fatigue') === -1 ? idx('fatigu') : idx('fatigue');
+  const tsIdx = 0; // タイムスタンプ
+  const userIdx = idxJp('ユーザーID') === -1 ? 1 : idxJp('ユーザーID');
+  const rtIdx = idxJp('反応時間') === -1 ? idx('reaction') : idxJp('反応時間');
+  const faIdx = idxJp('失敗数') === -1 ? idx('false') : idxJp('失敗数');
+  const gripIdx = idxJp('握力') === -1 ? idx('grip') : idxJp('握力');
+  const alcIdx = idxJp('アルコール') === -1 ? idx('alc') : idxJp('アルコール');
+  const fatIdx = idxJp('疲労') === -1 ? idx('fatigue') : idxJp('疲労');
+  const sleepIdx = idxJp('睡眠時間');
+  const deepIdx = idxJp('深い睡眠');
+
+  // タイムスタンプ→日付変換（"2026/06/12 23:16:42" → "2026-06-12"）
+  const parseDate = (ts: string): string => {
+    if (!ts) return '';
+    const d = new Date(ts.replace(/\//g, '-').replace(' ', 'T'));
+    if (isNaN(d.getTime())) return ts.slice(0, 10).replace(/\//g, '-');
+    return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+  };
+
+  // 睡眠時間パース: "6時間30分" or "6.5" → hours
+  const parseSleep = (val: string | undefined): number | null => {
+    if (!val) return null;
+    const hrMin = val.match(/(\d+)時間(?:(\d+)分)?/);
+    if (hrMin) return parseFloat(hrMin[1]) + (hrMin[2] ? parseFloat(hrMin[2]) / 60 : 0);
+    return parseNum(val);
+  };
 
   return data
-    .filter(r => r[dateIdx])
-    .map(r => ({
-      date: r[dateIdx],
-      reactionTime: rtIdx >= 0 ? parseNum(r[rtIdx]) : null,
-      falseAlarms: faIdx >= 0 ? parseNum(r[faIdx]) : null,
-      gripStrength: gripIdx >= 0 ? parseNum(r[gripIdx]) : null,
-      alcohol: alcIdx >= 0 ? parseNum(r[alcIdx]) : null,
-      fatigue: fatIdx >= 0 ? parseNum(r[fatIdx]) : null,
-    }));
+    .filter(r => r[tsIdx] && String(r[userIdx]) === userId)
+    .map(r => {
+      const rt = rtIdx >= 0 ? parseNum(r[rtIdx]) : null;
+      return {
+        date: parseDate(r[tsIdx]),
+        reactionTime: rt != null && rt < 10 ? Math.round(rt * 1000) : rt, // 秒→ms変換
+        falseAlarms: faIdx >= 0 ? parseNum(r[faIdx]) : null,
+        gripStrength: gripIdx >= 0 ? parseNum(r[gripIdx]) : null,
+        alcohol: alcIdx >= 0 ? parseNum(r[alcIdx]) : null,
+        fatigue: fatIdx >= 0 ? parseNum(r[fatIdx]) : null,
+        sleepTotal: sleepIdx >= 0 ? parseSleep(r[sleepIdx]) : null,
+        deepSleep: deepIdx >= 0 ? parseSleep(r[deepIdx]) : null,
+      };
+    });
 }
 
 export async function getNightData(suffix = 'S1'): Promise<NightRow[]> {
