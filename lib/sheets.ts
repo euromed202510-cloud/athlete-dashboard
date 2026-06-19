@@ -166,89 +166,31 @@ export interface AutoHealthRow {
   remSleep: number | null;
 }
 
-async function getANSData(id = '1'): Promise<AutoHealthRow[]> {
-  try {
-    const stratosId = process.env.STRATOS_SHEETS_ID;
-    if (!stratosId) return [];
-    const auth = getAuth();
-    const sheets = google.sheets({ version: 'v4', auth });
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId: stratosId, range: "'ANS データ'!A:G" });
-    const rows = (res.data.values as string[][]) ?? [];
-    if (rows.length < 2) return [];
-    const [, ...data] = rows;
-    // A=ID, B=日時, C=HRV, D=呼吸数, E=総睡眠(broken), F=深い睡眠(broken), G=安静心拍
-
-    // 日付ごとに最新行を取得
-    const byDate = new Map<string, AutoHealthRow>();
-    for (const r of data) {
-      if (!r[0] || String(r[0]) !== String(id)) continue;
-      const ts = r[1];
-      if (!ts) continue;
-      const d = new Date(ts.replace(/\//g, '-').replace(' ', 'T'));
-      const date = isNaN(d.getTime()) ? ts.slice(0, 10) : d.toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
-      byDate.set(date, {
-        date,
-        id: String(r[0]),
-        hrv: parseNum(r[2]) || null,
-        respRate: parseNum(r[3]) || null,
-        rhr: parseNum(r[6]) || null,
-        spo2: null, wristTemp: null, sleepTotal: null, deepSleep: null, remSleep: null,
-      });
-    }
-    return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
-  } catch {
-    return [];
-  }
-}
-
 export async function getAutoHealthData(id = '1'): Promise<AutoHealthRow[]> {
   try {
-    const [ahRows, ansRows] = await Promise.all([
-      getSheetValues('AutoHealth!A:J').catch(() => [] as string[][]),
-      getANSData(id),
-    ]);
-
-    // AutoHealthシートのデータ
-    const ahData: AutoHealthRow[] = [];
-    if (ahRows.length >= 2) {
-      const [header, ...data] = ahRows;
-      const idx = (name: string) => header.findIndex(h => h?.toLowerCase().includes(name.toLowerCase()));
-      const dateIdx = idx('date') === -1 ? 0 : idx('date');
-      const idIdx = idx('id') === -1 ? 1 : idx('id');
-      for (const r of data) {
-        if (!r[dateIdx] || (id !== 'all' && String(r[idIdx]) !== String(id))) continue;
-        ahData.push({
-          date: r[dateIdx],
-          id: r[idIdx] ?? '',
-          hrv: parseNum(r[idx('hrv')]),
-          rhr: parseNum(r[idx('rhr')]),
-          spo2: parseNum(r[idx('spo2')]),
-          respRate: parseNum(r[idx('resp')]),
-          wristTemp: parseNum(r[idx('wrist') === -1 ? idx('temp') : idx('wrist')]),
-          sleepTotal: parseNum(r[idx('sleep')]),
-          deepSleep: parseNum(r[idx('deep')]),
-          remSleep: parseNum(r[idx('rem')]),
-        });
-      }
+    const ahRows = await getSheetValues('AutoHealth!A:J').catch(() => [] as string[][]);
+    if (ahRows.length < 2) return [];
+    const [header, ...data] = ahRows;
+    const idx = (name: string) => header.findIndex(h => h?.toLowerCase().includes(name.toLowerCase()));
+    const dateIdx = idx('date') === -1 ? 0 : idx('date');
+    const idIdx = idx('id') === -1 ? 1 : idx('id');
+    const result: AutoHealthRow[] = [];
+    for (const r of data) {
+      if (!r[dateIdx] || (id !== 'all' && String(r[idIdx]) !== String(id))) continue;
+      result.push({
+        date: r[dateIdx],
+        id: r[idIdx] ?? '',
+        hrv: parseNum(r[idx('hrv')]),
+        rhr: parseNum(r[idx('rhr')]),
+        spo2: parseNum(r[idx('spo2')]),
+        respRate: parseNum(r[idx('resp')]),
+        wristTemp: parseNum(r[idx('wrist') === -1 ? idx('temp') : idx('wrist')]),
+        sleepTotal: parseNum(r[idx('sleep')]),
+        deepSleep: parseNum(r[idx('deep')]),
+        remSleep: parseNum(r[idx('rem')]),
+      });
     }
-
-    // ANSデータをマージ（AutoHealthにない日付を補完、あれば優先しない）
-    const ahDates = new Set(ahData.map(r => r.date));
-    const merged = [...ahData];
-    for (const ans of ansRows) {
-      if (!ahDates.has(ans.date)) {
-        merged.push(ans);
-      } else {
-        // AutoHealthにあるがHRV等が空の場合はANSで補完
-        const existing = merged.find(r => r.date === ans.date);
-        if (existing) {
-          existing.hrv = existing.hrv ?? ans.hrv;
-          existing.rhr = existing.rhr ?? ans.rhr;
-          existing.respRate = existing.respRate ?? ans.respRate;
-        }
-      }
-    }
-    return merged.sort((a, b) => a.date.localeCompare(b.date));
+    return result.sort((a, b) => a.date.localeCompare(b.date));
   } catch {
     return [];
   }
