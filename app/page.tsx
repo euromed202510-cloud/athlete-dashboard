@@ -3,8 +3,9 @@ import TodayContent from '@/components/TodayContent';
 
 export const dynamic = 'force-dynamic';
 
-export default function HomePage({ searchParams }: { searchParams: { user?: string } }) {
-  const user = searchParams.user ?? 'S1';
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ user?: string }> }) {
+  const { user: userParam } = await searchParams;
+  const user = userParam ?? 'S1';
   return (
     <Suspense fallback={<LoadingState />}>
       <TodayContent user={user} />

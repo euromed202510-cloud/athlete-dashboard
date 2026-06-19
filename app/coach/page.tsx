@@ -2,11 +2,12 @@ import CoachContent from '@/components/CoachContent';
 
 export const dynamic = 'force-dynamic';
 
-export default function CoachPage({
+export default async function CoachPage({
   searchParams,
 }: {
-  searchParams: { user?: string };
+  searchParams: Promise<{ user?: string }>;
 }) {
-  const user = searchParams.user ?? 'S1';
+  const { user: userParam } = await searchParams;
+  const user = userParam ?? 'S1';
   return <CoachContent user={user} />;
 }
