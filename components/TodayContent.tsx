@@ -137,7 +137,7 @@ export default async function TodayContent({ user = 'S1' }: { user?: string }) {
         <p className="text-xs tracking-widest" style={{ color: 'var(--subtext)' }}>
           {new Date().toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' })}
         </p>
-        <h1 className="text-xl font-semibold mt-0.5">{greeting()}, Yuki</h1>
+        <h1 className="text-xl font-semibold mt-0.5">{greeting()}, {user === 'S6' ? 'Kenta' : 'Yuki'}</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--subtext)' }}>
           {score
             ? `System ${score.status === 'PEAK' ? 'fully engaged' : score.status === 'GOOD' ? 'nominal' : score.status === 'CAUTION' ? 'under load' : 'in recovery'}.`
