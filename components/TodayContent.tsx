@@ -151,14 +151,15 @@ export default async function TodayContent({ user = 'S1' }: { user?: string }) {
         style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
       >
         {[
-          { label: 'RHR', value: daily?.rhr ? `${daily.rhr}` : '—', unit: 'bpm' },
-          { label: 'HRV', value: daily?.hrv ? `${Math.round(daily.hrv)}` : '—', unit: 'ms' },
-          { label: 'RESP', value: daily?.breathRate ? `${daily.breathRate}` : '—', unit: '/min' },
+          { label: 'RHR', value: daily?.rhr ? `${daily.rhr}` : '—', unit: 'bpm', hint: '低いほど良い' },
+          { label: 'HRV', value: daily?.hrv ? `${Math.round(daily.hrv)}` : '—', unit: 'ms', hint: '高いほど良い' },
+          { label: 'RESP', value: daily?.breathRate ? `${daily.breathRate}` : '—', unit: '/min', hint: '低いほど良い' },
         ].map(item => (
           <div key={item.label} className="flex flex-col items-center gap-0.5">
             <span style={{ fontSize: '9px', color: 'var(--subtext)', letterSpacing: '0.06em' }}>{item.label}</span>
             <span className="font-bold" style={{ fontSize: '1.1rem', color: 'var(--text)' }}>{item.value}</span>
             <span style={{ fontSize: '9px', color: 'var(--subtext)' }}>{item.unit}</span>
+            <span style={{ fontSize: '8px', color: 'var(--subtext)', opacity: 0.6 }}>{item.hint}</span>
           </div>
         ))}
       </div>
