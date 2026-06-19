@@ -172,7 +172,7 @@ async function getANSData(id = '1'): Promise<AutoHealthRow[]> {
     if (!stratosId) return [];
     const auth = getAuth();
     const sheets = google.sheets({ version: 'v4', auth });
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId: stratosId, range: 'ANS データ!A:G' });
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: stratosId, range: "'ANS データ'!A:G" });
     const rows = (res.data.values as string[][]) ?? [];
     if (rows.length < 2) return [];
     const [, ...data] = rows;
