@@ -77,6 +77,7 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const image = formData.get('image') as File;
     const id = (formData.get('id') as string) ?? '1';
+    const manualType = (formData.get('workoutType') as string) ?? '';
 
     if (!image) {
       return NextResponse.json({ error: 'image is required' }, { status: 400 });
@@ -109,6 +110,8 @@ export async function POST(request: Request) {
     }
 
     const parsed = parseWorkoutText(extractedText);
+    // 手動選択タイプがあれば優先してC列に使う
+    if (manualType) parsed.type = manualType;
 
     // Sheets に書き込み
     const auth = getAuth();
