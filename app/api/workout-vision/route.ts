@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
-import Anthropic from '@anthropic-ai/sdk';
 
 const SECRET_TOKEN = process.env.HEALTH_IMPORT_TOKEN ?? 'athlete2026';
 const SHEET_NAME = 'Workout';
@@ -8,8 +7,12 @@ const HEADER = ['Date', 'ID', 'Type', 'Start Time', 'Duration (min)', 'Calories'
 
 function getAuth() {
   let privateKey = process.env.GOOGLE_PRIVATE_KEY ?? '';
-  if (!privateKey.includes('BEGIN')) privateKey = Buffer.from(privateKey, 'base64').toString('utf8');
-  if (privateKey.includes('\\n')) privateKey = privateKey.replace(/\\n/g, '\n');
+  if (!privateKey.includes('BEGIN')) {
+    privateKey = Buffer.from(privateKey, 'base64').toString('utf8');
+  }
+  if (privateKey.includes('\\n')) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
   return new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     key: privateKey,
@@ -17,58 +20,95 @@ function getAuth() {
   });
 }
 
+function parseWorkoutText(text: string) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const fullText = lines.join(' ');
+
+  // Workout type (first meaningful line)
+  const typeMatch = text.match(/^([^\n]+)/);
+  let type = typeMatch ? typeMatch[1].trim() : 'Unknown';
+  type = type.replace(/\d+月\d+日.*/, '').trim();
+
+  // Duration HH:MM:SS or H:MM:SS
+  const durationMatch = fullText.match(/(\d+:\d{2}:\d{2})/);
+  let durationMin: number | null = null;
+  if (durationMatch) {
+    const parts = durationMatch[1].split(':').map(Number);
+    durationMin = Math.round(parts[0] * 60 + parts[1] + parts[2] / 60);
+  }
+
+  // Calories
+  const calMatch = fullText.match(/([\d,]+)\s*[Kk][Cc][Aa][Ll]/);
+  const calories = calMatch ? parseInt(calMatch[1].replace(',', '')) : null;
+
+  // Distance
+  const distMatch = fullText.match(/([\d.]+)\s*[Kk][Mm]/);
+  const distance = distMatch ? parseFloat(distMatch[1]) : null;
+
+  // Heart rate
+  const hrMatch = fullText.match(/(\d{2,3})\s*拍\s*\/\s*分/);
+  const avgHR = hrMatch ? parseInt(hrMatch[1]) : null;
+
+  // Date
+  const dateMatch = text.match(/(\d+)月(\d+)日/);
+  let date = new Date().toISOString().slice(0, 10);
+  if (dateMatch) {
+    const year = new Date().getFullYear();
+    const month = String(parseInt(dateMatch[1])).padStart(2, '0');
+    const day = String(parseInt(dateMatch[2])).padStart(2, '0');
+    date = `${year}-${month}-${day}`;
+  }
+
+  // Start time
+  const timeMatch = fullText.match(/(\d{1,2}:\d{2})(?:–|-)/);
+  const startTime = timeMatch ? timeMatch[1] : '';
+
+  return { type, date, startTime, durationMin, calories, avgHR, distance };
+}
+
 export async function POST(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
-    if (token !== SECRET_TOKEN) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (token !== SECRET_TOKEN) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const formData = await request.formData();
     const image = formData.get('image') as File;
     const id = (formData.get('id') as string) ?? '1';
-    if (!image) return NextResponse.json({ error: 'image is required' }, { status: 400 });
+
+    if (!image) {
+      return NextResponse.json({ error: 'image is required' }, { status: 400 });
+    }
 
     const imageBuffer = await image.arrayBuffer();
     const base64Image = Buffer.from(imageBuffer).toString('base64');
-    const mimeType = (image.type || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
-    // Claude vision で数値抽出
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+    // Google Vision API でテキスト抽出
+    const visionApiKey = process.env.GOOGLE_VISION_API_KEY;
+    const visionRes = await fetch(
+      `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requests: [{
+            image: { content: base64Image },
+            features: [{ type: 'TEXT_DETECTION', maxResults: 1 }],
+          }],
+        }),
+      }
+    );
 
-    const aiRes = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mimeType, data: base64Image },
-          },
-          {
-            type: 'text',
-            text: `This is a workout summary screenshot (Apple Watch, Garmin, etc). Extract the following values and respond ONLY with a JSON object, no extra text:
-{
-  "type": "workout type (e.g. Running, Cycling, Strength)",
-  "date": "YYYY-MM-DD (today is ${today} if not shown)",
-  "startTime": "HH:MM or empty string",
-  "durationMin": number or null,
-  "calories": number or null,
-  "avgHR": number or null,
-  "maxHR": number or null,
-  "distanceKm": number or null
-}`,
-          },
-        ],
-      }],
-    });
+    const visionData = await visionRes.json();
+    const extractedText = visionData.responses?.[0]?.fullTextAnnotation?.text ?? '';
 
-    const rawText = aiRes.content[0].type === 'text' ? aiRes.content[0].text : '';
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return NextResponse.json({ error: 'AI parse failed', raw: rawText }, { status: 400 });
+    if (!extractedText) {
+      return NextResponse.json({ error: 'テキストを認識できませんでした' }, { status: 400 });
+    }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = parseWorkoutText(extractedText);
 
     // Sheets に書き込み
     const auth = getAuth();
@@ -92,16 +132,15 @@ export async function POST(request: Request) {
     }
 
     const newRow = [
-      parsed.date ?? today, id, parsed.type ?? '', parsed.startTime ?? '',
+      parsed.date, id, parsed.type, parsed.startTime,
       parsed.durationMin ?? '', parsed.calories ?? '',
-      parsed.avgHR ?? '', parsed.maxHR ?? '', parsed.distanceKm ?? '',
+      parsed.avgHR ?? '', '', parsed.distance ?? '',
     ];
 
-    // 同日・同ID・同タイプなら上書き
     let updatedRow = -1;
     for (let i = 1; i < existingValues.length; i++) {
-      if (existingValues[i][0] === (parsed.date ?? today) && existingValues[i][1] === id &&
-          existingValues[i][2] === (parsed.type ?? '')) {
+      if (existingValues[i][0] === parsed.date && existingValues[i][1] === id &&
+          existingValues[i][2] === parsed.type) {
         updatedRow = i + 1;
         break;
       }
@@ -119,7 +158,7 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json({ success: true, parsed });
+    return NextResponse.json({ success: true, parsed, extractedText });
   } catch (err) {
     console.error('Workout vision error:', err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
