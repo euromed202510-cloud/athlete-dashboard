@@ -62,7 +62,9 @@ export async function POST(request: Request) {
       const yesterday = new Date(Date.now() - 86400000);
       date = yesterday.toISOString().slice(0, 10);
     }
-    const hrv = extractVal(body.hrv);
+    const hrvRaw = extractVal(body.hrv);
+    // Apple HealthKit が秒単位で送ってくる場合は ms に変換
+    const hrv = hrvRaw != null && hrvRaw < 10 ? Math.round(hrvRaw * 1000) : hrvRaw;
     const rhr = extractVal(body.rhr);
     const spo2 = extractVal(body.spo2);
     const respRate = extractVal(body.respRate);
