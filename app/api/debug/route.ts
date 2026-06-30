@@ -28,6 +28,15 @@ export async function GET(req: NextRequest) {
   try { results.daily = (await getDailyData(user)).slice(-1); }
   catch (e) { results.dailyError = String(e); }
 
+  // Workout sheet debug
+  try {
+    const auth = getAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: process.env.GOOGLE_SHEETS_ID, range: 'Workout!A:I' });
+    const rows = (res.data.values as string[][]) ?? [];
+    results.workout = { totalRows: rows.length, last3: rows.slice(-3) };
+  } catch (e) { results.workoutError = String(e); }
+
   // ANS raw debug
   try {
     const stratosId = process.env.STRATOS_SHEETS_ID;
