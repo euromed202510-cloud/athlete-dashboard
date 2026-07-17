@@ -35,13 +35,15 @@ export async function GET(req: NextRequest) {
     }
   };
 
-  const [morning, night, autoHealth, workout, ans] = await Promise.all([
+  const [morning, night, autoHealth, workout, ans, stratosMorning, stratosNight] = await Promise.all([
     get(mainId, '朝!A:Z'),
     get(mainId, '夜!A:Z'),
     get(mainId, 'AutoHealth!A:J'),
     get(mainId, 'Workout!A:I'),
     get(stratosId, "'ANS データ'!A:G"),
+    get(stratosId, '朝!A:Z'),
+    get(stratosId, '夜!A:Z'),
   ]);
 
-  return NextResponse.json({ morning, night, autoHealth, workout, ans });
+  return NextResponse.json({ morning, night, autoHealth, workout, ans, stratosMorning, stratosNight });
 }
