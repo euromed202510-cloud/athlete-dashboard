@@ -35,15 +35,26 @@ export async function GET(req: NextRequest) {
     }
   };
 
+  // STRATOSの全タブ名を取得し、朝/夜タブを名前で探す
+  let stratosTabs: string[] = [];
+  if (stratosId) {
+    try {
+      const meta = await sheets.spreadsheets.get({ spreadsheetId: stratosId });
+      stratosTabs = (meta.data.sheets ?? []).map(s => s.properties?.title ?? '');
+    } catch {}
+  }
+  const morningTab = stratosTabs.find(t => t.includes('朝')) ?? '朝';
+  const nightTab = stratosTabs.find(t => t.includes('夜')) ?? '夜';
+
   const [morning, night, autoHealth, workout, ans, stratosMorning, stratosNight] = await Promise.all([
     get(mainId, '朝!A:Z'),
     get(mainId, '夜!A:Z'),
     get(mainId, 'AutoHealth!A:J'),
     get(mainId, 'Workout!A:I'),
     get(stratosId, "'ANS データ'!A:G"),
-    get(stratosId, '朝!A:Z'),
-    get(stratosId, '夜!A:Z'),
+    get(stratosId, `'${morningTab}'!A:Z`),
+    get(stratosId, `'${nightTab}'!A:Z`),
   ]);
 
-  return NextResponse.json({ morning, night, autoHealth, workout, ans, stratosMorning, stratosNight });
+  return NextResponse.json({ morning, night, autoHealth, workout, ans, stratosMorning, stratosNight, stratosTabs });
 }
